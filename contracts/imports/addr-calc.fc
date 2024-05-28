@@ -1,0 +1,39 @@
+int slice_data_equal? (slice a, slice b) asm "SDEQ";
+
+(int) get_current_workchain () {
+	var (wc, _) = parse_std_addr(my_address());
+	return (wc);
+}
+
+(slice) calculate_address (cell state_init) {
+	int wc = get_current_workchain();
+	return begin_cell()
+		.store_uint(4, 3)
+		.store_int(wc, 8)
+		.store_uint(cell_hash(state_init), 256)
+		.end_cell()
+		.begin_parse();
+}
+
+cell pack_state_init(cell code, cell data) inline {
+	return begin_cell()
+		.store_uint(0, 2)
+		.store_dict(code)
+		.store_dict(data)
+		.store_uint(0, 1)
+		.end_cell();
+}
+
+cell calculate_state_init(
+    cell code, slice master_address, slice owner_address
+) inline {
+    return pack_state_init(
+        code,
+        begin_cell()
+        .store_slice(master_address)
+        .store_slice(owner_address)
+        .store_uint(0, 32)
+        .store_uint(0, 64)
+        .end_cell()
+    );
+}

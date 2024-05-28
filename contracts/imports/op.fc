@@ -1,0 +1,7 @@
+const int op::init_master = 0x999;
+const int op::lock = 0x1;
+const int op::unlock = 0x2;
+const int op::unlock_finalize = 0x3;
+const int op::set_user = 0x3;
+const int op::get_user = 0x4;
+const int op::success = 0x5;
