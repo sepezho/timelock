@@ -72,7 +72,7 @@ describe('TimeLock', () => {
         
         expect(deployResult.transactions.length).toBe(3);
         
-        blockchain.now = 200;
+        blockchain.now = 200; // time has passed
         
         const bodyWithdraw = beginCell().storeUint(0x2, 32).storeUint(0x444, 64).storeUint(110, 32).storeUint(990000000, 64).endCell();
         const withdrawResult = await timeLock.sendTx(deployer.getSender(), toNano(0.1), bodyWithdraw);
@@ -98,7 +98,6 @@ describe('TimeLock', () => {
               .storeUint(0x3, 32)
               .storeUint(0x444, 64)
               .storeAddress(deployer.address)
-              .storeUint(110, 32)
               .storeUint(990000000, 64)
               .endCell(), 
             success: true,
@@ -132,6 +131,9 @@ describe('TimeLock', () => {
         
         expect(deployResult.transactions.length).toBe(3);
         
+        // time has not passed
+        // we will try to immediately withdraw the funds
+    
         const bodyWithdraw = beginCell().storeUint(0x2, 32).storeUint(0x444, 64).storeUint(110, 32).storeUint(990000000, 64).endCell();
         const withdrawResult = await timeLock.sendTx(deployer.getSender(), toNano(0.1), bodyWithdraw);
 

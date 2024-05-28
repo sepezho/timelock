@@ -1,61 +1,73 @@
 #include "imports/stdlib.fc";
 #include "imports/op.fc";
 #include "imports/addr-calc.fc";
+int slice_data_equal? (slice a, slice b) asm "SDEQ"; ;; we can move it to stdlib but i want to have it here so ppl will be able to copy-paste the code without issues
 
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
   slice cs = in_msg_full.begin_parse();
   int flags = cs~load_uint(4);
   
-  if (flags & 1) {
+  if (flags & 1) { ;; ignore bounced messages
     return ();
   }
   
   slice sender_address = cs~load_msg_addr();
-
-  int op = in_msg_body~load_uint(32);
-  int query_id = in_msg_body~load_uint(64);
   
+  ;; --- get and parse store
   slice ds = get_data().begin_parse();
   cell user_code = ds~load_ref();
+  ;; --- get and parse store
+  
+  ;; parse incoming msg
+  int op = in_msg_body~load_uint(32);
+  int query_id = in_msg_body~load_uint(64);
 
   if (op == op::lock) {
+    ;; parse incoming msg
+    int unlock_time = in_msg_body~load_uint(32);
+    int unlock_amount = in_msg_body~load_uint(64);
+   
+    ;; if unlock amount is greater than msg value -> throw an error (we don't want to give them more than they sent to us)
+    throw_if(0x666, unlock_amount > msg_value);
+    ;; if unlock time is less than now() -> throw an error
+    throw_if(0x777, unlock_time < now());
+    
+    ;; calc addr of new user sc (that will store our data about this user) 
     cell state_init = calculate_state_init(user_code, my_address(), sender_address);
     slice user_addr = calculate_address(state_init);
     
-    int unlock_time = in_msg_body~load_uint(32);
-    int unlock_amount = in_msg_body~load_uint(64);
-    
-    throw_if(0x666, unlock_amount > msg_value);
-    throw_if(0x777, unlock_time < now());
-
+    ;; create tx to deploy user sc and store user data on it 
     var msg = begin_cell()
-      .store_uint(0x10, 6) ;; Non-bounceable to be able to deploy
+      .store_uint(0x10, 6) 
       .store_slice(user_addr)
-      .store_coins(50000000) ;; 0.05
+      .store_coins(50000000) ;; 0.05 ton for tx fees
       .store_uint(0, 1 + 4 + 4 + 64 + 32)
       .store_uint(7, 3)
       .store_ref(state_init);
-  
+    
     var msg_body = begin_cell()
       .store_uint(op::set_user, 32)
       .store_uint(query_id, 64)
       .store_uint(unlock_time, 32)
       .store_uint(unlock_amount, 64)
       .end_cell();
-
+    
     msg = msg.store_ref(msg_body);
-    send_raw_message(msg.end_cell(), 3); ;; revert on errors
+    ;; send tx 
+    send_raw_message(msg.end_cell(), 3); 
     return ();
   }
   
   if (op == op::unlock) {
+    ;; calc addr of user sc (that is storing our data about this user) 
     cell state_init = calculate_state_init(user_code, my_address(), sender_address);
     slice user_addr = calculate_address(state_init);
     
+    ;; send tx to user sc to get user data
     var msg = begin_cell()
-      .store_uint(0x10, 6) ;; Non-bounceable to be able to deploy
+      .store_uint(0x10, 6) 
       .store_slice(user_addr)
-      .store_coins(50000000) ;; 0.05
+      .store_coins(50000000) ;; 0.05 ton for tx fees
       .store_uint(0, 1 + 4 + 4 + 64 + 32)
       .store_uint(1, 2);
   
@@ -65,43 +77,51 @@
       .end_cell();
 
     msg = msg.store_ref(msg_body);
-    send_raw_message(msg.end_cell(), 3); ;; revert on errors
+    ;; send tx
+    send_raw_message(msg.end_cell(), 3);
     return ();
   }
   
   if (op == op::unlock_finalize) {
+    ;; so, we got user data from user sc, now we need to check if it's correct and send funds to user
+    ;; parse incoming msg body
     slice owner_address = in_msg_body~load_msg_addr(); 
-    int time = in_msg_body~load_uint(32); 
     int amount = in_msg_body~load_uint(64);
-
+      
+    ;; calc addr of user sc based on owner address 
     cell state_init = calculate_state_init(user_code, my_address(), owner_address);
     slice user_addr = calculate_address(state_init);
 
+    ;; so, by comparing calculated user addr and sender addr we can check if its actually user sc 
     throw_unless(0x555,
       slice_data_equal?(sender_address, user_addr)
     ); 
     
+    ;; just send funds to user
     var msg = begin_cell()
-      .store_uint(0x10, 6) ;; Non-bounceable to be able to deploy
+      .store_uint(0x10, 6)
       .store_slice(owner_address)
-      .store_coins(amount) ;; 0.05
+      .store_coins(amount) 
       .store_uint(0, 1 + 4 + 4 + 64 + 32)
       .store_uint(1, 2);
-  
+    
+    ;; with success code and query id in the body
     var msg_body = begin_cell()
       .store_uint(op::success, 32)
       .store_uint(query_id, 64)
       .end_cell();
 
     msg = msg.store_ref(msg_body);
-    send_raw_message(msg.end_cell(), 3); ;; revert on errors
+    ;; send tx
+    send_raw_message(msg.end_cell(), 3);
     return ();
   }
 
   if (op == op::init_master) {
-    ;; do nothing
+    ;; do nothing for deployment tx
     return ();
   }
   
+  ;; if wrong op-code -> throw an error
   throw(0xfff); 
 }
