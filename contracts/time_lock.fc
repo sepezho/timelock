@@ -24,13 +24,13 @@ int slice_data_equal? (slice a, slice b) asm "SDEQ"; ;; we can move it to stdlib
 
   if (op == op::lock) {
     ;; parse incoming msg
-    int unlock_time = in_msg_body~load_uint(32);
-    int unlock_amount = in_msg_body~load_uint(64);
+    int unlock_timestamp = in_msg_body~load_uint(32);
+    int locked_amount = in_msg_body~load_uint(64);
    
     ;; if unlock amount is greater than msg value -> throw an error (we don't want to give them more than they sent to us)
-    throw_if(0x666, unlock_amount > msg_value);
+    throw_if(0x666, locked_amount > msg_value);
     ;; if unlock time is less than now() -> throw an error
-    throw_if(0x777, unlock_time < now());
+    throw_if(0x777, unlock_timestamp < now());
     
     ;; calc addr of new user sc (that will store our data about this user) 
     cell state_init = calculate_state_init(user_code, my_address(), sender_address);
@@ -48,8 +48,8 @@ int slice_data_equal? (slice a, slice b) asm "SDEQ"; ;; we can move it to stdlib
     var msg_body = begin_cell()
       .store_uint(op::set_user, 32)
       .store_uint(query_id, 64)
-      .store_uint(unlock_time, 32)
-      .store_uint(unlock_amount, 64)
+      .store_uint(unlock_timestamp, 32)
+      .store_uint(locked_amount, 64)
       .end_cell();
     
     msg = msg.store_ref(msg_body);
@@ -86,7 +86,7 @@ int slice_data_equal? (slice a, slice b) asm "SDEQ"; ;; we can move it to stdlib
     ;; so, we got user data from user sc, now we need to check if it's correct and send funds to user
     ;; parse incoming msg body
     slice owner_address = in_msg_body~load_msg_addr(); 
-    int amount = in_msg_body~load_uint(64);
+    int locked_amount = in_msg_body~load_uint(64);
       
     ;; calc addr of user sc based on owner address 
     cell state_init = calculate_state_init(user_code, my_address(), owner_address);
@@ -101,7 +101,7 @@ int slice_data_equal? (slice a, slice b) asm "SDEQ"; ;; we can move it to stdlib
     var msg = begin_cell()
       .store_uint(0x10, 6)
       .store_slice(owner_address)
-      .store_coins(amount) 
+      .store_coins(locked_amount) 
       .store_uint(0, 1 + 4 + 4 + 64 + 32)
       .store_uint(1, 2);
     

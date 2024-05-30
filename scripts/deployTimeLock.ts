@@ -61,9 +61,7 @@ const unlock = async (provider:any ) => {
 
 export async function run(provider: NetworkProvider) {
     const ui = provider.ui();
-  console.log('test');
     const operation = await ui.choose('Operation:', ['1', '2', '3'], (v: string) => Operations[parseInt(v)]);
-  console.log(operation);
     switch (parseInt(operation)) {
         case 1:
             await deploy(provider);

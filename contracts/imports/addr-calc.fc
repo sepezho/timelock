@@ -19,7 +19,7 @@ cell calculate_state_init(
     cell code, slice master_address, slice owner_address
 ) inline {
   ;; state init of user sc is basicaly a code cell of this sc and start storage cell of this sc
-  ;; on start storage cell we store master address, owner address, and 0 for unlock_time and 0 for unlock_amount 
+  ;; on start storage cell we store master address, owner address, and 0 for unlock_timestamp and 0 for locked_amount 
 	return begin_cell()
 		.store_uint(0, 2)
 		.store_dict(code) 

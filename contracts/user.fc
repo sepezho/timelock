@@ -16,8 +16,8 @@ int slice_data_equal? (slice a, slice b) asm "SDEQ"; ;; we can move it to stdlib
   slice ds = get_data().begin_parse();
   slice master_address = ds~load_msg_addr();
   slice owner_addr = ds~load_msg_addr();
-  int time = ds~load_uint(32);
-  int amount = ds~load_uint(64);
+  int unlock_timestamp = ds~load_uint(32);
+  int locked_amount = ds~load_uint(64);
   ;; --- get and parse store
   
   throw_unless(0x555,
@@ -30,24 +30,24 @@ int slice_data_equal? (slice a, slice b) asm "SDEQ"; ;; we can move it to stdlib
   
   if (op == op::set_user) {
     ;; parse incoming msg
-    int new_time = in_msg_body~load_uint(32); 
-    int new_amount = in_msg_body~load_uint(64);
+    int new_unlock_timestamp = in_msg_body~load_uint(32); 
+    int new_locked_amount = in_msg_body~load_uint(64);
     
     ;; set new data to store
     set_data(
       begin_cell()
       .store_slice(master_address)
       .store_slice(owner_addr)
-      .store_uint(new_time, 32)
-      .store_uint(new_amount, 64)
+      .store_uint(new_unlock_timestamp, 32)
+      .store_uint(new_locked_amount, 64)
       .end_cell()
     );
     return ();
   }
   
   if (op == op::get_user) {
-    ;; if time has pased we can unlock the funds and finalize unlock process
-    throw_if(0x888, time > now()); ;; if no - error
+    ;; if unlock_timestamp has pased we can unlock the funds and finalize unlock process
+    throw_if(0x888, unlock_timestamp > now()); ;; if no - error
     
     ;; build unlock finalize tx to master sc with amount 
     var msg = begin_cell()
@@ -62,7 +62,7 @@ int slice_data_equal? (slice a, slice b) asm "SDEQ"; ;; we can move it to stdlib
       .store_uint(op::unlock_finalize, 32)
       .store_uint(query_id, 64)
       .store_slice(owner_addr)
-      .store_uint(amount, 64)
+      .store_uint(locked_amount, 64)
       .end_cell();
 
     msg = msg.store_ref(msg_body);
